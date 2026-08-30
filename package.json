@@ -1,0 +1,12 @@
+{
+  "name": "ai-doc-intel-root",
+  "version": "1.0.0",
+  "description": "Root workspace runner for AI-Driven Document Intelligence System",
+  "scripts": {
+    "install-all": "npm install --prefix server && npm install --prefix client",
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "dev": "node -e \"const cp=require('child_process'); cp.spawn('npm', ['run', 'dev'], {cwd: './server', stdio: 'inherit', shell: true}); cp.spawn('npm', ['run', 'dev'], {cwd: './client', stdio: 'inherit', shell: true});\""
+  },
+  "private": true
+}
