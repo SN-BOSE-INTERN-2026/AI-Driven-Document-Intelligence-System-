@@ -22,19 +22,19 @@ export default {
           900: '#4a2302',
           950: '#2d1401',
         },
-        // Warm dark — earthy, not cold blue-black
+        // Stone/charcoal — clearly visible on white
         dark: {
-          50:  '#f5ede0',
-          100: '#ece0d0',
-          200: '#d9c7b0',
-          300: '#bda990',
-          400: '#9e8878',
-          500: '#7c6b5e',
-          600: '#5a4e44',
-          700: '#3d3328',
-          800: '#261e16',  // warm panel surface
-          900: '#191310',  // warm deep surface
-          950: '#100d09',  // warm near-black background
+          50:  '#1c1917',  // darkest — primary text
+          100: '#292524',
+          200: '#3d3533',
+          300: '#57534e',  // secondary text
+          400: '#78716c',  // muted text
+          500: '#a8a29e',  // placeholder / very muted
+          600: '#d6d3d1',  // borders
+          700: '#e5e7eb',  // light borders
+          800: '#f5f5f4',  // surface off
+          900: '#fafaf9',  // background off
+          950: '#ffffff',  // white
         }
       },
       animation: {

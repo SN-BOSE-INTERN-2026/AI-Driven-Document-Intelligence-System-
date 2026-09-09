@@ -159,25 +159,31 @@ export default function Dashboard() {
   }, [documents]);
 
   // ── Socket real-time pipeline ────────────────────────────────────────────
+  const documentsRef   = useRef(documents);
+  const selectedDocRef = useRef(selectedDocId);
+  useEffect(() => { documentsRef.current   = documents;    }, [documents]);
+  useEffect(() => { selectedDocRef.current = selectedDocId; }, [selectedDocId]);
+
   useEffect(() => {
     if (!user) return;
-    const socket = io(window.location.origin, { transports: ['websocket','polling'] });
+    const socket = io(window.location.origin, { transports: ['websocket', 'polling'] });
     socket.on('connect', () => socket.emit('register', user.id));
     socket.on('document_status_update', (data) => {
       const { documentId, status } = data;
       dispatch(updateDocumentStatus(data));
       setPipelines(prev => {
-        const doc = documents.find(d => d._id === documentId);
+        const doc   = documentsRef.current.find(d => d._id === documentId);
         const entry = prev[documentId] || { docTitle: doc?.title || 'Document', currentStage: status };
         if (status === 'completed' || status === 'failed') {
-          setTimeout(() => setPipelines(p => { const n={...p}; delete n[documentId]; return n; }), 3500);
+          setTimeout(() => setPipelines(p => { const n = { ...p }; delete n[documentId]; return n; }), 3500);
         }
         return { ...prev, [documentId]: { ...entry, currentStage: status } };
       });
-      if (documentId === selectedDocId && status === 'completed') loadDetail(documentId, true);
+      if (documentId === selectedDocRef.current && status === 'completed') loadDetail(documentId, true);
     });
     return () => socket.disconnect();
-  }, [user, dispatch, documents, selectedDocId]);
+  }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
+
 
   // ── Load detail ──────────────────────────────────────────────────────────
   const loadDetail = async (docId, silent = false) => {

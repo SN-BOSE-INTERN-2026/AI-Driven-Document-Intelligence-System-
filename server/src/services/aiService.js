@@ -1,21 +1,4 @@
-const { OpenAI } = require('openai');
-
-const openaiApiKey = process.env.OPENAI_API_KEY;
-let openai = null;
-let chatModel = 'gpt-4o-mini';
-let embeddingModel = 'text-embedding-3-small';
-let isGemini = false;
-let geminiApiKey = null;
-
-if (openaiApiKey && openaiApiKey !== 'your_openai_api_key_here') {
-  if (openaiApiKey.startsWith('AIza')) {
-    isGemini = true;
-    geminiApiKey = openaiApiKey;
-    chatModel = 'gemini-2.5-flash';
-  } else {
-    openai = new OpenAI({ apiKey: openaiApiKey });
-  }
-}
+const geminiApiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
 
 /**
  * Split text into chunks with overlap
@@ -97,19 +80,6 @@ const generateLocalEmbedding = (text) => {
  */
 const generateEmbedding = async (text) => {
   if (!text) return new Array(1536).fill(0);
-
-  if (openai) {
-    try {
-      const response = await openai.embeddings.create({
-        model: embeddingModel,
-        input: text.replace(/\n/g, ' ')
-      });
-      return response.data[0].embedding;
-    } catch (error) {
-      console.warn('OpenAI embedding generation failed, falling back to local simulation:', error.message);
-    }
-  }
-
   return generateLocalEmbedding(text);
 };
 
@@ -131,37 +101,34 @@ const cosineSimilarity = (vecA, vecB) => {
 };
 
 /**
- * Classify a document based on text keywords or OpenAI
+ * Classify a document based on text keywords or Gemini AI
  * @param {string} text - Extracted document text
  * @returns {Promise<{category: string, tags: Array<string>}>}
  */
 const classifyDocument = async (text) => {
   const textSample = (text || '').substring(0, 5000);
   
-  if (openai) {
+  if (geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here') {
     try {
-      const response = await openai.chat.completions.create({
-        model: 'gpt-4o-mini',
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an AI specialized in classifying files. Classify the document into one of: Invoice, Resume, Legal, Medical, Financial, Academic, Other. Respond with a JSON object containing "category" and "tags" (list of 3-5 tags).'
-          },
-          {
-            role: 'user',
-            content: `Document sample text:\n\n${textSample}`
-          }
-        ],
-        response_format: { type: "json_object" }
+      const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          systemInstruction: { parts: [{ text: 'You are an AI specialized in classifying files. Classify the document into one of: Invoice, Resume, Legal, Medical, Financial, Academic, Other. Respond with a JSON object containing "category" and "tags" (list of 3-5 tags).' }] },
+          contents: [{ parts: [{ text: `Document sample text:\n\n${textSample}` }] }],
+          generationConfig: { responseMimeType: "application/json" }
+        })
       });
-      
-      const result = JSON.parse(response.choices[0].message.content);
-      return {
-        category: result.category || 'Other',
-        tags: result.tags || []
-      };
+      const data = await res.json();
+      if (data.candidates && data.candidates.length > 0) {
+        const result = JSON.parse(data.candidates[0].content.parts[0].text);
+        return {
+          category: result.category || 'Other',
+          tags: result.tags || []
+        };
+      }
     } catch (error) {
-      console.warn('OpenAI classification failed, falling back to heuristics:', error.message);
+      console.warn('Gemini classification failed, falling back to heuristics:', error.message);
     }
   }
 
@@ -210,31 +177,7 @@ const generateSummary = async (text) => {
 
   const textSample = cleanText.substring(0, 8000);
 
-  if (openai && !isGemini) {
-    try {
-      const response = await openai.chat.completions.create({
-        model: chatModel,
-        messages: [
-          {
-            role: 'system',
-            content: `You are an AI document summarization engine. Analyze the text and return a JSON object with keys:
-            - "short": A 1-2 sentence high-level overview.
-            - "detailed": A comprehensive 1-2 paragraph description.
-            - "bulletPoints": A list of 3-6 key takeaways.`
-          },
-          {
-            role: 'user',
-            content: `Document text:\n\n${textSample}`
-          }
-        ],
-        response_format: { type: "json_object" }
-      });
-
-      return JSON.parse(response.choices[0].message.content);
-    } catch (error) {
-      console.warn('OpenAI summarization failed, falling back to heuristics:', error.message);
-    }
-  } else if (isGemini) {
+  if (geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here') {
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
         method: 'POST',
@@ -294,65 +237,12 @@ const answerQuestion = async (question, chunks) => {
     };
   }
 
-  let contextText;
-  let sources;
+  // For Gemini: use ALL chunks as context — local hash embeddings are not reliable enough
+  // Gemini's large context window can handle the full document text at once
+  const contextText = chunks.map((chunk, i) => `[Chunk ${chunk.index ?? i}]: ${chunk.text}`).join('\n\n');
+  const sources = [];
 
-  if (isGemini) {
-    // For Gemini: use ALL chunks as context — local hash embeddings are not reliable enough
-    // Gemini's large context window can handle the full document text at once
-    contextText = chunks.map((chunk, i) => `[Chunk ${chunk.index ?? i}]: ${chunk.text}`).join('\n\n');
-    sources = [];
-  } else {
-    // 1. Generate query embedding
-    const queryEmbedding = await generateEmbedding(question);
-
-    // 2. Compute similarity for all chunks and sort
-    const scoredChunks = chunks.map((chunk) => {
-      const score = cosineSimilarity(queryEmbedding, chunk.embedding);
-      return { chunk, score };
-    });
-
-    scoredChunks.sort((a, b) => b.score - a.score);
-
-    // 3. Take only the top 1 best matching chunk
-    const topMatches = scoredChunks.slice(0, 1).filter(item => item.score > 0.05);
-
-    if (topMatches.length === 0) {
-      return {
-        answer: "I couldn't find any relevant sections in the document to answer your question with confidence.",
-        sources: []
-      };
-    }
-
-    contextText = topMatches.map(m => `[Chunk ${m.chunk.index}]: ${m.chunk.text}`).join('\n\n');
-    sources = [];
-  }
-
-
-  if (openai && !isGemini) {
-    try {
-      const response = await openai.chat.completions.create({
-        model: chatModel,
-        messages: [
-          {
-            role: 'system',
-            content: 'You are an AI assistant helping a user extract answers from a document. Use the provided document chunks as context to answer the question. Be concise, direct, and refer specifically to the context where possible. If the context does not contain the answer, explain that you are answering from the document text but could not find specific detail.'
-          },
-          {
-            role: 'user',
-            content: `Context:\n${contextText}\n\nQuestion: ${question}`
-          }
-        ]
-      });
-
-      return {
-        answer: response.choices[0].message.content,
-        sources
-      };
-    } catch (error) {
-      console.warn('OpenAI completions failed, falling back to local retrieval:', error.message);
-    }
-  } else if (isGemini) {
+  if (geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here') {
     try {
       const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`, {
         method: 'POST',
@@ -377,28 +267,26 @@ const answerQuestion = async (question, chunks) => {
   }
 
   // Local RAG fallback (Regex matcher / word occurrences)
-  // Let's find the sentence in the top match that shares the most words with the question.
-  const topChunkText = topMatches[0].chunk.text;
-  const matchSentences = topChunkText.split(/[.!?]\s+/);
-  
-  let bestSentence = matchSentences[0] || topChunkText;
-  let maxMatchCount = 0;
-  
+  let bestSentence = chunks[0].text;
+  let maxMatchCount = -1;
   const questionWords = question.toLowerCase().split(/\s+/).filter(w => w.length > 3);
-  
-  matchSentences.forEach(sentence => {
-    let matches = 0;
-    questionWords.forEach(word => {
-      if (sentence.toLowerCase().includes(word)) matches++;
+
+  chunks.forEach(chunk => {
+    const matchSentences = chunk.text.split(/[.!?]\s+/);
+    matchSentences.forEach(sentence => {
+      let matches = 0;
+      questionWords.forEach(word => {
+        if (sentence.toLowerCase().includes(word)) matches++;
+      });
+      if (matches > maxMatchCount) {
+        maxMatchCount = matches;
+        bestSentence = sentence;
+      }
     });
-    if (matches > maxMatchCount) {
-      maxMatchCount = matches;
-      bestSentence = sentence;
-    }
   });
 
   return {
-    answer: `Based on Section ${topMatches[0].chunk.index} of the document: "${bestSentence.trim()}." (Local simulation response based on similarity score: ${(topMatches[0].score * 100).toFixed(1)}%)`,
+    answer: `Based on the document: "${bestSentence.trim()}." (Local simulation response)`,
     sources
   };
 };

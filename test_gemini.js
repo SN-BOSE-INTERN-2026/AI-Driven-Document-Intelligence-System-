@@ -1,21 +1,27 @@
 require('dotenv').config();
-const { OpenAI } = require('openai');
-const openai = new OpenAI({ 
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: 'https://generativelanguage.googleapis.com/v1beta/openai/'
-});
+
+const geminiApiKey = process.env.GEMINI_API_KEY || process.env.OPENAI_API_KEY;
 
 async function run() {
   try {
-    const res = await openai.chat.completions.create({
-      model: 'gemini-1.5-flash',
-      messages: [{ role: 'user', content: 'hi' }]
-    });
-    console.log("SUCCESS:");
-    console.log(res.choices[0].message);
+    const res = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${geminiApiKey}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: 'hi' }] }]
+        })
+      }
+    );
+    const data = await res.json();
+    if (data.candidates && data.candidates.length > 0) {
+      console.log("SUCCESS:", data.candidates[0].content.parts[0].text);
+    } else {
+      console.log("UNEXPECTED RESPONSE:", JSON.stringify(data, null, 2));
+    }
   } catch (err) {
-    console.log("ERROR STATUS:", err.status);
-    console.log("ERROR MSG:", err.message);
+    console.log("ERROR:", err.message);
   }
 }
 run();

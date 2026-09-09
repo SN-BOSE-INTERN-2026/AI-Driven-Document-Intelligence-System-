@@ -70,9 +70,7 @@ export default function Register() {
   };
 
   return (
-    <div className="min-h-screen flex" style={{
-      background: 'radial-gradient(ellipse 80% 60% at 75% 50%, rgba(74,124,95,0.06) 0%, transparent 60%), radial-gradient(ellipse 60% 50% at 20% 65%, rgba(217,119,6,0.08) 0%, transparent 50%), #100d09'
-    }}>
+    <div className="min-h-screen flex" style={{ background: '#ffffff' }}>
       {/* ── Left Form Panel ───────────────────────────────────────────── */}
       <div className="flex-1 flex items-center justify-center p-6 lg:p-12">
         <div className="w-full max-w-md">

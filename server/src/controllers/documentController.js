@@ -182,7 +182,7 @@ const processDocumentBackground = async (documentId, tempFilePath, originalName,
     doc.status = 'failed';
     doc.errorMessage = error.message;
     await doc.save();
-    emitDocStatus(userId, doc);
+    emitDocStatus(userId, doc); //ye update deta hai document_status_update
 
     // Clean up local temp file on error ONLY if it's not stored locally as the primary file
     // For local storage mode, we keep the raw file so the user can still download it even if AI processing failed

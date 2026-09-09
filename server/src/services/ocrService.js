@@ -4,12 +4,7 @@ const Tesseract = require('tesseract.js');
 const pdfParse = require('pdf-parse');
 const mammoth = require('mammoth');
 
-/**
- * Extract text from a document based on its extension
- * @param {string} filePath - Absolute path to the file on disk
- * @param {string} originalName - Original file name
- * @returns {Promise<{text: string, confidence: number}>} Extracted text and confidence score
- */
+
 const extractText = async (filePath, originalName) => {
   const ext = path.extname(originalName).toLowerCase();
   let text = '';
@@ -46,7 +41,7 @@ const extractText = async (filePath, originalName) => {
           { logger: m => console.log(`OCR Progress: ${(m.progress * 100).toFixed(1)}%`) }
         );
         text = ocrResult.data.text;
-        confidence = ocrResult.data.confidence;
+        confidence = ocrResult.data.confidence; //ocrResult.data.confidence-> gives us the resulting overall confidence score on a 0–100 scale
         break;
 
       default:
