@@ -428,21 +428,16 @@ exports.questionAnswer = async (req, res, next) => {
       return res.status(500).json({ success: false, message: 'Pinecone is required but not configured for chunk storage.' });
     }
 
-    // Always use Pinecone for querying now
+    // Generate query embedding then filter by documentId directly for precise retrieval
     const queryEmbedding = await aiService.generateEmbedding(question);
-    
-    // We can query Pinecone globally or filtered by documentId
-    // Currently vectorDbService.queryVectors supports filtering by userId. 
-    // To filter by documentId, we could update the service, but since we didn't yet,
-    // we'll fetch matches and filter manually if a specific documentId was provided.
-    // (Or better, vectorDbService allows metadata filtering if we update it).
     const pineconeMatches = await vectorDbService.queryVectors(
       queryEmbedding,
       req.user.role !== 'admin' ? req.user._id : null,
-      20 // get more matches so we can filter locally by docId if needed
+      20,
+      documentId || null  // pass documentId for server-side Pinecone filtering
     );
 
-    // Filter to the specific document if requested
+    // Secondary client-side filter only needed if no documentId was given
     let finalMatches = pineconeMatches;
     if (documentId) {
       finalMatches = finalMatches.filter(m => m.metadata.documentId === documentId.toString());

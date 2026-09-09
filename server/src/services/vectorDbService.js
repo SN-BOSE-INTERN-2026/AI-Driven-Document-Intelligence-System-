@@ -22,7 +22,7 @@ if (isPineconeConfigured) {
 /**
  * Upload document chunks to Pinecone
  */
-const upsertVectors = async (documentId, chunks, user) => {
+const upsertVectors = async (documentId, chunks, userId) => {
   if (pineconeIndex && chunks && chunks.length > 0) {
     try {
       console.log(`Synchronizing ${chunks.length} vectors to Pinecone index: ${process.env.PINECONE_INDEX}`);
@@ -32,7 +32,7 @@ const upsertVectors = async (documentId, chunks, user) => {
           values: chunk.embedding,
           metadata: {
             documentId: documentId.toString(),
-            userId: user ? user._id.toString() : 'system',
+            userId: userId ? userId.toString() : 'system',
             text: chunk.text,
             chunkIndex: index
           }
@@ -45,9 +45,10 @@ const upsertVectors = async (documentId, chunks, user) => {
         const batch = vectors.slice(i, i + batchSize);
         await pineconeIndex.upsert(batch);
       }
+      console.log(`✅ ${chunks.length} vectors upserted to Pinecone for document ${documentId}`);
       return true;
     } catch (error) {
-      console.error('Pinecone sync failed, using MongoDB backup: ', error);
+      console.error('Pinecone sync failed: ', error);
     }
   }
   return true;
@@ -86,7 +87,7 @@ const deleteVectors = async (documentId) => {
 /**
  * Query Pinecone for top matching chunks
  */
-const queryVectors = async (queryEmbedding, userId, topK = 5) => {
+const queryVectors = async (queryEmbedding, userId, topK = 5, documentId = null) => {
   if (pineconeIndex && queryEmbedding) {
     try {
       const queryParams = {
@@ -95,8 +96,10 @@ const queryVectors = async (queryEmbedding, userId, topK = 5) => {
         includeMetadata: true
       };
       
-      // If a userId is provided and the user is not admin, we could filter by userId.
-      if (userId) {
+      // Filter by documentId first (most specific), then fall back to userId
+      if (documentId) {
+        queryParams.filter = { documentId: documentId.toString() };
+      } else if (userId) {
         queryParams.filter = { userId: userId.toString() };
       }
       
