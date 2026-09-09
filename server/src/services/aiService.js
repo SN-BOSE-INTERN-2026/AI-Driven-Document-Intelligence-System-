@@ -237,9 +237,8 @@ const answerQuestion = async (question, chunks) => {
     };
   }
 
-  // For Gemini: use ALL chunks as context — local hash embeddings are not reliable enough
-  // Gemini's large context window can handle the full document text at once
-  const contextText = chunks.map((chunk, i) => `[Chunk ${chunk.index ?? i}]: ${chunk.text}`).join('\n\n');
+  // Format the context text cleanly without explicit chunk labels
+  const contextText = chunks.map(chunk => chunk.text).join('\n\n---\n\n');
   const sources = [];
 
   if (geminiApiKey && geminiApiKey !== 'your_gemini_api_key_here') {
@@ -248,7 +247,7 @@ const answerQuestion = async (question, chunks) => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          systemInstruction: { parts: [{ text: "You are an AI assistant helping a user extract answers from a document. Use the provided document chunks as context to answer the question. Be concise, direct, and refer specifically to the context where possible. If the context does not contain the answer, explain that you are answering from the document text but could not find specific detail." }] },
+          systemInstruction: { parts: [{ text: "You are an AI assistant helping a user extract answers from a document. Use the provided document context to answer the question. Be concise and direct. Do not mention the word 'chunk' or cite chunk numbers in your response. Answer naturally." }] },
           contents: [{ parts: [{ text: `Context:\n${contextText}\n\nQuestion: ${question}` }] }]
         })
       });
