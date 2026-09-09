@@ -43,7 +43,7 @@ const upsertVectors = async (documentId, chunks, userId) => {
       const batchSize = 100;
       for (let i = 0; i < vectors.length; i += batchSize) {
         const batch = vectors.slice(i, i + batchSize);
-        await pineconeIndex.upsert(batch);
+        await pineconeIndex.upsert({ records: batch });
       }
       console.log(`✅ ${chunks.length} vectors upserted to Pinecone for document ${documentId}`);
       return true;
@@ -67,7 +67,7 @@ const deleteVectors = async (documentId) => {
         let deleted = false;
         // The pinecone client v3 allows deleting with a filter directly if it's a serverless index
         if (pineconeIndex.deleteMany) {
-           await pineconeIndex.deleteMany({ documentId: documentId.toString() });
+           await pineconeIndex.deleteMany({ filter: { documentId: documentId.toString() } });
            deleted = true;
         }
         if (!deleted) {
